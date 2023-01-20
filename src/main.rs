@@ -1,49 +1,68 @@
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Instant;
 
-const MAX_I: i32 = 10_i32.pow(8);
-const I_GRPS: i32 = MAX_I / 8;
+const THREAD_COUNT: u64 = 8;
+const MAX_I: u64 = 10_u64.pow(8);
 
-fn is_prime(n:i32) -> bool {
-    if n <= 1 {
-        return false;
-    }
-    for i in 2..n {
-        if n % i == 0 {
-            return false;
+fn gen_primes(n: u64) -> (u64, u64) {
+//    let stime = Instant::now();
+//    let st = n;
+    let inc = THREAD_COUNT * 2;
+    let mut n = n;
+    let mut c = 0;
+    let mut s = 0;
+    while n < MAX_I {
+        let mut is_prime = true;
+        if (n < 3) | (n % 2 == 0) {
+            n += inc;
+            continue;
         }
+        let max = (n as f64).sqrt().ceil() as u64;
+        for i in (3u64..=max).step_by(2) {
+            if n % i == 0 {
+                is_prime = false;
+                break;
+            }
+        }
+        if is_prime {
+            c += 1;
+            s += n;
+        }
+        n += inc;
     }
-    true
+//    println!("[gen_primes]: time: {}, start: {}, end: {}", stime.elapsed().as_millis(), st, n);
+    (c, s)
 }
 
 fn main() {
     let s_time = Instant::now();
-    let prime_count = Arc::new(Mutex::new(0));
-    let prime_sum = Arc::new(Mutex::new(0_i64));
-    let mut handles = vec![];
+    let mut prime_count = 1;
+    let mut prime_sum = 2;
 
-    for i in 0..8 {
-        let prime_count = Arc::clone(&prime_count);
-        let prime_sum = Arc::clone(&prime_sum);
-        let handle = thread::spawn(move || {
-            let mut cnt = prime_count.lock().unwrap();
-            let mut psum = prime_sum.lock().unwrap();
+    let (tx, rx) = channel();
 
-            for n in ((I_GRPS*i)+1)..I_GRPS*(i+1) {
-                if is_prime(n) {
-                    *cnt += 1;
-                    *psum += n as i64;
-                }
-            }
+    for i in 0..THREAD_COUNT {
+        let tx = tx.clone();
+
+        thread::spawn(move || {
+            tx.send(gen_primes(1 + (2*i))).unwrap();
         });
-        handles.push(handle);
+
     }
 
-    for handle in handles {
-        handle.join().unwrap();
+    let mut tleft = THREAD_COUNT;
+    while tleft != 0 {
+        let (c, s) = rx.recv().unwrap();
+        prime_count += c;
+        prime_sum += s;
+
+        tleft -= 1;
     }
 
     println!("{} {} {}",
-        s_time.elapsed().as_millis(), *prime_sum.lock().unwrap(), *prime_count.lock().unwrap());
+        s_time.elapsed().as_millis(),
+        prime_count,
+        prime_sum
+    );
 }
