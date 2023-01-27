@@ -1,0 +1,19 @@
+
+
+
+To build and run:
+
+```bash
+make
+
+# or manually
+
+cargo b --release
+
+target/release/asn1
+
+```
+
+### Summary
+
+I used the segmented sieve of eratosthenes algorithm.
